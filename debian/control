@@ -9,7 +9,7 @@ Vcs-Git: git://github.com/mopidy/pykka-deb.git
 Vcs-Browser: http://github.com/mopidy/pykka-deb
 
 Package: python-pykka
-Architecture: any
+Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}
 Suggests: python-gevent
 Description: Actor model library for Python

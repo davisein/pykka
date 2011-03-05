@@ -1,0 +1,28 @@
+Source: python-pykka
+Section: python
+Priority: optional
+Maintainer: Stein Magnus Jodal <stein.magnus@jodal.no>
+Build-Depends: debhelper (>= 7.0.50~), python-support, python-all-dev (>= 2.6)
+Standards-Version: 3.9.1
+Homepage: http://jodal.github.com/pykka/
+Vcs-Git: git://github.com/mopidy/pykka-deb.git
+Vcs-Browser: http://github.com/mopidy/pykka-deb
+
+Package: python-pykka
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}
+Suggests: python-gevent
+Description: Actor model library for Python
+ The goal of Pykka is to provide easy to use concurrency abstractions for
+ Python by using the actor model.
+ .
+ Pykka provides an actor API with two different implementations:
+ .
+ ThreadingActor is built on the Python Standard Library's threading and
+ multiprocessing modules, and has no dependencies outside Python itself. It
+ plays well together with non-actor threads.
+ .
+ GeventActor is built on the gevent library. gevent is a coroutine-based Python
+ networking library that uses greenlet to provide a high-level synchronous API
+ on top of libevent event loop. It is generally faster, but doesn't like
+ playing with other threads.

@@ -1,4 +1,3 @@
-import pickle
 import multiprocessing
 import multiprocessing.reduction
 
@@ -60,25 +59,42 @@ class Future(object):
         """
         raise NotImplementedError
 
-    def serialize(self):
-        """
-        Serialize the future for sending between actors.
 
-        :returns: a serialized future
-        """
-        raise NotImplementedError
+class _ConnectionWrapper(object):
+    """
+    Internal class used by :class:`ThreadingFuture` to make
+    :class:`multiprocessing.Connection` objects picklable.
+    """
 
-    @classmethod
-    def unserialize(cls, serialized_future):
-        """
-        Unserialize a future serialized with :meth:`serialize` into a working
-        future again.
+    def __init__(self, connection):
+        self._connection = connection
 
-        :param serialized_future: a serialized future
+    def __reduce__(self):
+        (conn_func, conn_args) = multiprocessing.reduction.reduce_connection(
+            self._connection)
+        wrapper_func = _ConnectionWrapperRebuilder(conn_func)
+        return (wrapper_func, conn_args)
 
-        :returns: a future
-        """
-        raise NotImplementedError
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+
+class _ConnectionWrapperRebuilder(object):
+    """
+    Internal class used by :class:`_ConnectionWrapper` to rewrap
+    :class:`multiprocessing.Connection` objects when they are depickled.
+
+    A function defined inside :meth:`_ConnectionWrapper.__reduce__` which takes
+    :attr:`conn_func` from its scope cannot be used, as functions must be
+    defined at the module's top level to be picklable.
+    """
+
+    def __init__(self, inner_func):
+        self._inner_func = inner_func
+
+    def __call__(self, *args):
+        connection = self._inner_func(*args)
+        return _ConnectionWrapper(connection)
 
 
 class ThreadingFuture(Future):
@@ -88,6 +104,10 @@ class ThreadingFuture(Future):
             self.reader, self.writer = pipe
         else:
             self.reader, self.writer = multiprocessing.Pipe(False)
+        if not isinstance(self.reader, _ConnectionWrapper):
+            self.reader = _ConnectionWrapper(self.reader)
+        if not isinstance(self.writer, _ConnectionWrapper):
+            self.writer = _ConnectionWrapper(self.writer)
         self.value_received = False
         self.value = None
 
@@ -111,20 +131,6 @@ class ThreadingFuture(Future):
 
     def set_exception(self, exception):
         self.set(exception)
-
-    def serialize(self):
-        return pickle.dumps((
-            multiprocessing.reduction.reduce_connection(self.reader),
-            multiprocessing.reduction.reduce_connection(self.writer),
-        ))
-
-    @classmethod
-    def unserialize(cls, serialized_future):
-        ((reader_func, reader_args), (writer_func, writer_args)) = \
-            pickle.loads(serialized_future)
-        reader = reader_func(*reader_args)
-        writer = writer_func(*writer_args)
-        return ThreadingFuture(pipe=(reader, writer))
 
 
 def get_all(futures, timeout=None):

@@ -73,14 +73,6 @@ class Actor(object):
         ActorRegistry.register(obj.actor_ref)
         return obj.actor_ref
 
-    @classmethod
-    def start_proxy(cls, *args, **kwargs):
-        """
-        Just like :meth:`start`, but wraps the returned :class:`ActorRef` in an
-        :class:`ActorProxy`.
-        """
-        return ActorProxy(cls.start(*args, **kwargs))
-
     #: The actor URN string is a universally unique identifier for the actor.
     #: It may be used for looking up a specific actor using
     #: :meth:`pykka.registry.ActorRegistry.get_by_urn`.
@@ -149,6 +141,7 @@ class Actor(object):
 
         :class:`ThreadingActor` expects this method to be named :meth:`run`.
         """
+        self.post_start()
         self.actor_runnable = True
         while self.actor_runnable:
             message = self.actor_inbox.get()
@@ -160,6 +153,17 @@ class Actor(object):
                 if 'reply_to' in message:
                     message['reply_to'].set_exception(exception)
     # pylint: enable = W0703
+
+    def post_start(self):
+        """
+        Hook for doing any setup that should be done *after* the actor is
+        started, but *before* it starts processing messages.
+
+        For :class:`ThreadingActor`, this method is executed in the actor's own
+        thread, while :meth:`__init__` is executed in the thread that created
+        the actor.
+        """
+        pass
 
     def _react(self, message):
         """Reacts to messages sent to the actor."""
@@ -345,3 +349,18 @@ class ActorRef(object):
         ``block`` and ``timeout`` works as for :meth:`send_request_reply`.
         """
         self.send_request_reply({'command': 'pykka_stop'}, block, timeout)
+
+    def proxy(self):
+        """
+        Wraps the :class:`ActorRef` in an :class:`pykka.proxy.ActorProxy`.
+
+        Using this method like this::
+
+            ref = AnActor.start()
+            proxy = ActorProxy(ref)
+
+        is analogous to::
+
+            proxy = AnActor.start().proxy()
+        """
+        return ActorProxy(self)

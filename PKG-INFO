@@ -1,6 +1,6 @@
 Metadata-Version: 1.0
 Name: Pykka
-Version: 0.10
+Version: 0.11
 Summary: Pykka is easy to use concurrency using the actor model
 Home-page: http://jodal.github.com/pykka/
 Author: Stein Magnus Jodal
@@ -16,8 +16,8 @@ Description: =====
         Pykka provides an actor API with two different implementations:
         
         - **ThreadingActor** is built on the Python Standard Library's `threading` and
-          `multiprocessing` modules, and has no dependencies outside Python itself. It
-          plays well together with non-actor threads.
+          `Queue` modules, and has no dependencies outside Python itself. It plays well
+          together with non-actor threads.
         
         - **GeventActor** is built on the `gevent <http://www.gevent.org/>`_ library.
           gevent is a coroutine-based Python networking library that uses greenlet to

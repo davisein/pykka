@@ -1,5 +1,6 @@
 #: Pykka's version as a tuple that can be used for comparison
-VERSION = (0, 11)
+VERSION = (0, 11, 1)
+
 
 def get_version():
     """Returns Pykka's version as a formatted string"""

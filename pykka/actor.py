@@ -1,4 +1,3 @@
-import collections
 import logging
 import threading
 import uuid
@@ -8,7 +7,7 @@ try:
     import Queue as queue
 except ImportError:
     # Python 3.x
-    import queue
+    import queue  # pylint: disable = F0401
 
 from pykka.future import ThreadingFuture
 from pykka.proxy import ActorProxy
@@ -155,7 +154,7 @@ class Actor(object):
                 response = self._react(message)
                 if 'reply_to' in message:
                     message['reply_to'].set(response)
-            except Exception as exception:
+            except BaseException as exception:
                 if 'reply_to' in message:
                     message['reply_to'].set_exception(exception)
     # pylint: enable = W0703
@@ -236,7 +235,10 @@ class Actor(object):
             if self._is_exposable_attribute(attr_path[-1]):
                 attr = self._get_attribute_from_path(attr_path)
                 result[tuple(attr_path)] = {
-                    'callable': isinstance(attr, collections.Callable),
+                    # NOTE isinstance(attr, collections.Callable), as
+                    # recommended by 2to3, does not work on CPython 2.6.4 if
+                    # the attribute is an Queue.Queue, but works on 2.6.6.
+                    'callable': callable(attr),
                     'traversable': self._is_traversable_attribute(attr),
                 }
                 if self._is_traversable_attribute(attr):

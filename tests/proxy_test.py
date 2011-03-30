@@ -1,7 +1,8 @@
+import sys
 import unittest
 
+from pykka import ActorDeadError
 from pykka.actor import ThreadingActor
-from pykka.gevent import GeventActor
 from pykka.proxy import ActorProxy
 
 
@@ -70,12 +71,24 @@ class ProxyTest(object):
         self.assert_(isinstance(proxy_from_ref_proxy, ActorProxy))
         proxy_from_ref_proxy.stop()
 
-
-class GeventProxyTest(ProxyTest, unittest.TestCase):
-    class AnActor(AnActor, GeventActor):
-        pass
+    def test_proxy_constructor_raises_exception_if_actor_is_dead(self):
+        actor_ref = self.AnActor.start()
+        actor_ref.stop()
+        try:
+            ActorProxy(actor_ref)
+            self.fail('Should raise ActorDeadError')
+        except ActorDeadError as exception:
+            self.assertEqual('%s not found' % actor_ref, str(exception))
 
 
 class ThreadingProxyTest(ProxyTest, unittest.TestCase):
     class AnActor(AnActor, ThreadingActor):
         pass
+
+
+if sys.version_info < (3,):
+    from pykka.gevent import GeventActor
+
+    class GeventProxyTest(ProxyTest, unittest.TestCase):
+        class AnActor(AnActor, GeventActor):
+            pass

@@ -1,15 +1,13 @@
-import copy
+import copy as _copy
 
 try:
     # Python 2.x
-    import Queue as queue
+    import Queue as _queue
 except ImportError:
     # Python 3.x
-    import queue  # pylint: disable = F0401
+    import queue as _queue  # pylint: disable = F0401
 
-
-class Timeout(Exception):
-    pass
+from pykka import Timeout as _Timeout
 
 
 class Future(object):
@@ -32,18 +30,17 @@ class Future(object):
         If ``timeout`` is :class:`None`, as default, the method will block
         until it gets a reply, potentially forever. If ``timeout`` is an
         integer or float, the method will wait for a reply for ``timeout``
-        seconds, and then raise :exc:`Timeout`.
+        seconds, and then raise :exc:`pykka.Timeout`.
 
         The encapsulated value can be retrieved multiple times. The future will
         only block the first time the value is accessed.
 
-        :param block: whether to block while waiting for a reply
-        :type block: boolean
-
         :param timeout: seconds to wait before timeout
         :type timeout: float or :class:`None`
 
-        :return: encapsulated value
+        :raise: :exc:`pykka.Timeout` if timeout is reached
+        :raise: encapsulated value if it is an exception
+        :return: encapsulated value if it is not an exception
         """
         raise NotImplementedError
 
@@ -80,7 +77,7 @@ class ThreadingFuture(Future):
 
     def __init__(self):
         super(ThreadingFuture, self).__init__()
-        self._queue = queue.Queue()
+        self._queue = _queue.Queue()
         self._value_received = False
         self._value = None
 
@@ -93,14 +90,14 @@ class ThreadingFuture(Future):
                 raise self._value  # pylint: disable = E0702
             else:
                 return self._value
-        except queue.Empty:
-            raise Timeout('%s seconds' % timeout)
+        except _queue.Empty:
+            raise _Timeout('%s seconds' % timeout)
 
     def set(self, value=None):
         if isinstance(value, ThreadingFuture):
             value = value
         else:
-            value = copy.deepcopy(value)
+            value = _copy.deepcopy(value)
         self._queue.put(value)
 
     def set_exception(self, exception):
@@ -112,7 +109,7 @@ def get_all(futures, timeout=None):
     Collect all values encapsulated in the list of futures.
 
     If ``timeout`` is not :class:`None`, the method will wait for a reply for
-    ``timeout`` seconds, and then raise :exc:`pykka.future.Timeout`.
+    ``timeout`` seconds, and then raise :exc:`pykka.Timeout`.
 
     :param futures: futures for the results to collect
     :type futures: list of `pykka.future.Future`
@@ -120,6 +117,7 @@ def get_all(futures, timeout=None):
     :param timeout: seconds to wait before timeout
     :type timeout: float or :class:`None`
 
+    :raise: :exc:`pykka.Timeout` if timeout is reached
     :returns: list of results
     """
     return [future.get(timeout=timeout) for future in futures]

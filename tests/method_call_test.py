@@ -1,7 +1,7 @@
+import sys
 import unittest
 
 from pykka.actor import ThreadingActor
-from pykka.gevent import GeventActor
 
 
 class ActorWithMethods(object):
@@ -51,24 +51,10 @@ class MethodCallTest(object):
             self.assert_(result.startswith('<ActorProxy for ActorWithMethods'))
             self.assert_(result.endswith('has no attribute "unknown_method"'))
 
-    def test_calling_method_which_throws_subclass_of_BaseException(self):
-        try:
-            self.proxy.raise_keyboard_interrupt().get()
-            self.fail('Should raise KeyboardInterrupt, but got no exception')
-        except KeyboardInterrupt as e:
-            pass
-
     def test_can_call_method_that_was_added_at_runtime(self):
         self.proxy_extendable.add_method('foo')
         self.assertEqual('returned by foo', self.proxy_extendable.foo().get())
 
-
-class GeventMethodCallTest(MethodCallTest, unittest.TestCase):
-    class ActorWithMethods(ActorWithMethods, GeventActor):
-        pass
-
-    class ActorExtendableAtRuntime(ActorExtendableAtRuntime, GeventActor):
-        pass
 
 
 class ThreadingMethodCallTest(MethodCallTest, unittest.TestCase):
@@ -77,3 +63,14 @@ class ThreadingMethodCallTest(MethodCallTest, unittest.TestCase):
 
     class ActorExtendableAtRuntime(ActorExtendableAtRuntime, ThreadingActor):
         pass
+
+
+if sys.version_info < (3,):
+    from pykka.gevent import GeventActor
+
+    class GeventMethodCallTest(MethodCallTest, unittest.TestCase):
+        class ActorWithMethods(ActorWithMethods, GeventActor):
+            pass
+
+        class ActorExtendableAtRuntime(ActorExtendableAtRuntime, GeventActor):
+            pass

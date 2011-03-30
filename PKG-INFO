@@ -1,6 +1,6 @@
 Metadata-Version: 1.0
 Name: Pykka
-Version: 0.11.1
+Version: 0.12
 Summary: Pykka is easy to use concurrency using the actor model
 Home-page: http://jodal.github.com/pykka/
 Author: Stein Magnus Jodal

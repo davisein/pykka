@@ -1,19 +1,22 @@
-import logging
-import threading
-import uuid
+import collections as _collections
+import logging as _logging
+import sys as _sys
+import threading as _threading
+import uuid as _uuid
 
 try:
     # Python 2.x
-    import Queue as queue
+    import Queue as _queue
 except ImportError:
     # Python 3.x
-    import queue  # pylint: disable = F0401
+    import queue as _queue  # pylint: disable = F0401
 
-from pykka.future import ThreadingFuture
-from pykka.proxy import ActorProxy
-from pykka.registry import ActorRegistry
+from pykka import ActorDeadError as _ActorDeadError
+from pykka.future import ThreadingFuture as _ThreadingFuture
+from pykka.proxy import ActorProxy as _ActorProxy
+from pykka.registry import ActorRegistry as _ActorRegistry
 
-logger = logging.getLogger('pykka')
+_logger = _logging.getLogger('pykka')
 
 
 class Actor(object):
@@ -34,13 +37,22 @@ class Actor(object):
 
         class MyActor(ThreadingActor):
             def __init__(self, my_arg=None):
-                ... # my init code
+                ... # My optional init code with access to start() arguments
 
-            def react(self, message):
-                ... # my react code for a plain actor
+            def on_start(self):
+                ... # My optional setup code in same context as on_receive()
+
+            def on_stop(self):
+                ... # My optional cleanup code in same context as on_receive()
+
+            def on_failure(self, exception_type, exception_value, traceback):
+                ... # My optional cleanup code in same context as on_receive()
+
+            def on_receive(self, message):
+                ... # My optional message handling code for a plain actor
 
             def a_method(self, ...):
-                ... # my regular method to be used through an ActorProxy
+                ... # My regular method to be used through an ActorProxy
 
         my_actor_ref = MyActor.start(my_arg=...)
         my_actor_ref.stop()
@@ -65,7 +77,7 @@ class Actor(object):
                 Actor.__new__()
                     superclass.__new__()
                     superclass.__init__()
-                    UUID assignment
+                    URN assignment
                     Inbox creation
                     ActorRef creation
                 Actor.__init__()        # Your code can run here
@@ -74,8 +86,8 @@ class Actor(object):
         """
         obj = cls(*args, **kwargs)
         cls._superclass.start(obj)
-        logger.debug('Started %s', obj)
-        ActorRegistry.register(obj.actor_ref)
+        _logger.debug('Started %s', obj)
+        _ActorRegistry.register(obj.actor_ref)
         return obj.actor_ref
 
     #: The actor URN string is a universally unique identifier for the actor.
@@ -83,7 +95,7 @@ class Actor(object):
     #: :meth:`pykka.registry.ActorRegistry.get_by_urn`.
     actor_urn = None
 
-    #: The actors inbox. Use :meth:`ActorRef.send_one_way` and friends to put
+    #: The actor's inbox. Use :meth:`ActorRef.send_one_way` and friends to put
     #: messages in the inbox.
     actor_inbox = None
 
@@ -92,12 +104,12 @@ class Actor(object):
 
     #: Wether or not the actor should continue processing messages. Use
     #: :meth:`stop` to change it.
-    actor_runnable = True
+    _actor_runnable = True
 
     def __new__(cls, *args, **kwargs):
         obj = cls._superclass.__new__(cls)
         cls._superclass.__init__(obj)
-        obj.actor_urn = uuid.uuid4().urn
+        obj.actor_urn = _uuid.uuid4().urn
         # pylint: disable = W0212
         obj.actor_inbox = obj._new_actor_inbox()
         # pylint: enable = W0212
@@ -132,9 +144,10 @@ class Actor(object):
         The actor will finish processing any messages already in its queue
         before stopping. It may not be restarted.
         """
-        self.actor_runnable = False
-        ActorRegistry.unregister(self.actor_ref)
-        logger.debug('Stopped %s', self)
+        _ActorRegistry.unregister(self.actor_ref)
+        self._actor_runnable = False
+        _logger.debug('Stopped %s', self)
+        self.on_stop()
 
     # pylint: disable = W0703
     def _run(self):
@@ -146,20 +159,29 @@ class Actor(object):
 
         :class:`ThreadingActor` expects this method to be named :meth:`run`.
         """
-        self.post_start()
-        self.actor_runnable = True
-        while self.actor_runnable:
+        self.on_start()
+        self._actor_runnable = True
+        while self._actor_runnable:
             message = self.actor_inbox.get()
             try:
-                response = self._react(message)
+                response = self._handle_receive(message)
                 if 'reply_to' in message:
                     message['reply_to'].set(response)
-            except BaseException as exception:
+            except Exception as exception:
                 if 'reply_to' in message:
+                    _logger.debug('Exception returned from %s to caller:' %
+                        self, exc_info=_sys.exc_info())
                     message['reply_to'].set_exception(exception)
+                else:
+                    self._handle_failure(*_sys.exc_info())
+            except KeyboardInterrupt:
+                _logger.debug('Keyboard interrupt in %s. ' % self +
+                    'Stopping all actors.')
+                self.stop()
+                _ActorRegistry.stop_all()
     # pylint: enable = W0703
 
-    def post_start(self):
+    def on_start(self):
         """
         Hook for doing any setup that should be done *after* the actor is
         started, but *before* it starts processing messages.
@@ -170,8 +192,42 @@ class Actor(object):
         """
         pass
 
-    def _react(self, message):
-        """Reacts to messages sent to the actor."""
+    def on_stop(self):
+        """
+        Hook for doing any cleanup that should be done *after* the actor has
+        processed the last message, and *before* the actor stops.
+
+        This hook is *not* called when the actor stops because of an unhandled
+        exception. In that case, the :meth:`on_failure` hook is called instead.
+
+        For :class:`ThreadingActor` this method is executed in the actor's own
+        thread, immediately before the thread exits.
+        """
+        pass
+
+    def _handle_failure(self, exception_type, exception_value, traceback):
+        """Logs unexpected failures, unregisters and stops the actor."""
+        _logger.error('Unhandled exception in %s:' % self,
+            exc_info=(exception_type, exception_value, traceback))
+        _ActorRegistry.unregister(self.actor_ref)
+        self._actor_runnable = False
+        self.on_failure(exception_type, exception_value, traceback)
+
+    def on_failure(self, exception_type, exception_value, traceback):
+        """
+        Hook for doing any cleanup *after* an unhandled exception is raised,
+        and *before* the actor stops.
+
+        For :class:`ThreadingActor` this method is executed in the actor's own
+        thread, immediately before the thread exits.
+
+        The method's arguments are the relevant information from
+        :func:`sys.exc_info`.
+        """
+        pass
+
+    def _handle_receive(self, message):
+        """Handles messages sent to the actor."""
         if message.get('command') == 'pykka_get_attributes':
             return self._get_attributes()
         if message.get('command') == 'pykka_stop':
@@ -187,13 +243,13 @@ class Actor(object):
                 message['attr_path'][:-1])
             attr_name = message['attr_path'][-1]
             return setattr(parent_attr, attr_name, message['value'])
-        return self.react(message)
+        return self.on_receive(message)
 
-    def react(self, message):
+    def on_receive(self, message):
         """
-        May be implemented for the actor to handle non-proxy messages.
+        May be implemented for the actor to handle regular non-proxy messages.
 
-        Messages where the value of the 'command' key matches 'pykka_*' are
+        Messages where the value of the "command" key matches "pykka_*" are
         reserved for internal use in Pykka.
 
         :param message: the message to handle
@@ -201,7 +257,7 @@ class Actor(object):
 
         :returns: anything that should be sent as a reply to the sender
         """
-        raise NotImplementedError
+        _logger.warning('Unexpected message received by %s: %s', self, message)
 
     def _is_exposable_attribute(self, attr_name):
         """
@@ -209,6 +265,16 @@ class Actor(object):
         :class:`ActorProxy`.
         """
         return not attr_name.startswith('_')
+
+    def _is_callable_attribute(self, attr):
+        """Returns true for any attribute that is callable."""
+        # isinstance(attr, collections.Callable), as recommended by 2to3, does
+        # not work on CPython 2.6.4 if the attribute is an Queue.Queue, but
+        # works on 2.6.6.
+        if _sys.version_info < (3,):
+            return callable(attr)
+        else:
+            return isinstance(attr, _collections.Callable)
 
     def _is_traversable_attribute(self, attr):
         """
@@ -235,10 +301,7 @@ class Actor(object):
             if self._is_exposable_attribute(attr_path[-1]):
                 attr = self._get_attribute_from_path(attr_path)
                 result[tuple(attr_path)] = {
-                    # NOTE isinstance(attr, collections.Callable), as
-                    # recommended by 2to3, does not work on CPython 2.6.4 if
-                    # the attribute is an Queue.Queue, but works on 2.6.6.
-                    'callable': callable(attr),
+                    'callable': self._is_callable_attribute(attr),
                     'traversable': self._is_traversable_attribute(attr),
                 }
                 if self._is_traversable_attribute(attr):
@@ -248,7 +311,7 @@ class Actor(object):
 
 
 # pylint: disable = R0901
-class ThreadingActor(Actor, threading.Thread):
+class ThreadingActor(Actor, _threading.Thread):
     """
     :class:`ThreadingActor` implements :class:`Actor` using regular Python
     threads.
@@ -257,17 +320,14 @@ class ThreadingActor(Actor, threading.Thread):
     can be used in a process with other threads that are not Pykka actors.
     """
 
-    _superclass = threading.Thread
-    _future_class = ThreadingFuture
+    _superclass = _threading.Thread
+    _future_class = _ThreadingFuture
 
     def _new_actor_inbox(self):
-        return queue.Queue()
+        return _queue.Queue()
 
     def run(self):
         return Actor._run(self)
-
-    def react(self, message):
-        raise NotImplementedError
 # pylint: enable = R0901
 
 
@@ -303,6 +363,19 @@ class ActorRef(object):
             'class': self.actor_class.__name__,
         }
 
+    def is_alive(self):
+        """
+        Check if actor is alive.
+
+        This is based on whether the actor is registered in the actor registry
+        or not. The actor is not guaranteed to be alive and responding even
+        though :meth:`is_alive` returns :class:`True`.
+
+        :return:
+            Returns :class:`True` if actor is alive, :class:`False` otherwise.
+        """
+        return _ActorRegistry.get_by_urn(self.actor_urn) is not None
+
     def send_one_way(self, message):
         """
         Send message to actor without waiting for any response.
@@ -313,8 +386,11 @@ class ActorRef(object):
         :param message: message to send
         :type message: picklable dict
 
+        :raise: :exc:`pykka.ActorDeadError` if actor is not available
         :return: nothing
         """
+        if not self.is_alive():
+            raise _ActorDeadError('%s not found' % self)
         self.actor_inbox.put(message)
 
     def send_request_reply(self, message, block=True, timeout=None):
@@ -329,7 +405,7 @@ class ActorRef(object):
         default, the method will block until it gets a reply, potentially
         forever. If ``timeout`` is an integer or float, the method will wait
         for a reply for ``timeout`` seconds, and then raise
-        :exc:`pykka.future.Timeout`.
+        :exc:`pykka.Timeout`.
 
         :param message: message to send
         :type message: picklable dict
@@ -340,6 +416,8 @@ class ActorRef(object):
         :param timeout: seconds to wait before timeout if blocking
         :type timeout: float or :class:`None`
 
+        :raise: :exc:`pykka.Timeout` if timeout is reached
+        :raise: :exc:`pykka.ActorDeadError` if actor is not available
         :return: :class:`pykka.future.Future` or response
         """
         future = self._future_class()
@@ -354,9 +432,19 @@ class ActorRef(object):
         """
         Send a message to the actor, asking it to stop.
 
+        The actor will finish processing any messages already in its queue
+        before stopping. It may not be restarted.
+
         ``block`` and ``timeout`` works as for :meth:`send_request_reply`.
+
+        :return: :class:`True` if actor is stopped. :class:`False` if actor was
+            already dead.
         """
-        self.send_request_reply({'command': 'pykka_stop'}, block, timeout)
+        if self.is_alive():
+            self.send_request_reply({'command': 'pykka_stop'}, block, timeout)
+            return True
+        else:
+            return False
 
     def proxy(self):
         """
@@ -364,11 +452,13 @@ class ActorRef(object):
 
         Using this method like this::
 
-            ref = AnActor.start()
-            proxy = ActorProxy(ref)
+            proxy = AnActor.start().proxy()
 
         is analogous to::
 
-            proxy = AnActor.start().proxy()
+            proxy = ActorProxy(AnActor.start())
+
+        :raise: :exc:`pykka.ActorDeadError` if actor is not available
+        :return: :class:`pykka.proxy.ActorProxy`
         """
-        return ActorProxy(self)
+        return _ActorProxy(self)

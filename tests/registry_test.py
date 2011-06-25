@@ -29,6 +29,14 @@ class ActorRegistryTest(object):
         ActorRegistry.register(self.ref)
         self.assert_(self.ref in ActorRegistry.get_all())
 
+    def test_actor_may_be_unregistered_multiple_times_without_error(self):
+        ActorRegistry.unregister(self.ref)
+        self.assert_(self.ref not in ActorRegistry.get_all())
+        ActorRegistry.unregister(self.ref)
+        self.assert_(self.ref not in ActorRegistry.get_all())
+        ActorRegistry.register(self.ref)
+        self.assert_(self.ref in ActorRegistry.get_all())
+
     def test_all_actors_can_be_stopped_through_registry(self):
         self.assertEquals(9, len(ActorRegistry.get_all()))
         ActorRegistry.stop_all(block=True)
@@ -63,17 +71,60 @@ class ActorRegistryTest(object):
         result = ActorRegistry.get_by_urn('urn:foo:bar')
         self.assertEqual(None, result)
 
+    def test_broadcast_sends_message_to_all_actors_if_no_target(self):
+        ActorRegistry.broadcast({'command': 'foo'})
+        for actor_ref in ActorRegistry.get_all():
+            received_messages = actor_ref.proxy().received_messages.get()
+            self.assertIn({'command': 'foo'}, received_messages)
+
+    def test_broadcast_sends_message_to_all_actors_of_given_class(self):
+        ActorRegistry.broadcast({'command': 'foo'}, target_class=self.AnActor)
+        for actor_ref in ActorRegistry.get_by_class(self.AnActor):
+            received_messages = actor_ref.proxy().received_messages.get()
+            self.assertIn({'command': 'foo'}, received_messages)
+        for actor_ref in ActorRegistry.get_by_class(self.BeeActor):
+            received_messages = actor_ref.proxy().received_messages.get()
+            self.assertNotIn({'command': 'foo'}, received_messages)
+
+    def test_broadcast_sends_message_to_all_actors_of_given_class_name(self):
+        ActorRegistry.broadcast({'command': 'foo'}, target_class='AnActor')
+        for actor_ref in ActorRegistry.get_by_class(self.AnActor):
+            received_messages = actor_ref.proxy().received_messages.get()
+            self.assertIn({'command': 'foo'}, received_messages)
+        for actor_ref in ActorRegistry.get_by_class(self.BeeActor):
+            received_messages = actor_ref.proxy().received_messages.get()
+            self.assertNotIn({'command': 'foo'}, received_messages)
+
 
 class AnActorSuperclass(object):
     pass
 
 
+class AnActor(AnActorSuperclass):
+    received_messages = None
+
+    def __init__(self):
+        self.received_messages = []
+
+    def on_receive(self, message):
+        self.received_messages.append(message)
+
+
+class BeeActor(object):
+    received_messages = None
+
+    def __init__(self):
+        self.received_messages = []
+
+    def on_receive(self, message):
+        self.received_messages.append(message)
+
 
 class ThreadingActorRegistryTest(ActorRegistryTest, unittest.TestCase):
-    class AnActor(ThreadingActor, AnActorSuperclass):
+    class AnActor(AnActor, ThreadingActor):
         pass
 
-    class BeeActor(ThreadingActor):
+    class BeeActor(BeeActor, ThreadingActor):
         pass
 
 
@@ -81,8 +132,8 @@ if sys.version_info < (3,):
     from pykka.gevent import GeventActor
 
     class GeventActorRegistryTest(ActorRegistryTest, unittest.TestCase):
-        class AnActor(GeventActor, AnActorSuperclass):
+        class AnActor(AnActor, GeventActor):
             pass
 
-        class BeeActor(GeventActor):
+        class BeeActor(BeeActor, GeventActor):
             pass

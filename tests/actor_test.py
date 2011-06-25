@@ -33,8 +33,16 @@ class AnActor(object):
             raise Exception('foo')
         elif message.get('command') == 'raise base exception':
             raise BaseException()
+        elif message.get('command') == 'stop twice':
+            self.stop()
+            self.stop()
         else:
             super(AnActor, self).on_receive(message)
+
+
+class EarlyStoppingActor(AnActor):
+    def on_start(self):
+        self.stop()
 
 
 class ActorTest(object):
@@ -89,6 +97,24 @@ class ActorTest(object):
         self.assertTrue(
             self.actor_was_registered_before_on_start_was_called.is_set())
 
+    def test_on_start_can_stop_actor_before_receive_loop_is_started(self):
+        # NOTE: This test will pass even if the actor is allowed to start the
+        # receive loop, but it will cause the test suite to hang, as the actor
+        # thread is blocking on receiving messages to the actor inbox forever.
+        # If one made this test specifically for ThreadingActor, one could add
+        # an assertFalse(actor_thread.is_alive()), which would cause the test to
+        # fail properly.
+        start_event = self.event_class()
+        stop_event = self.event_class()
+        fail_event = self.event_class()
+        registered_event = self.event_class()
+        another_actor = self.EarlyStoppingActor.start(start_event, stop_event,
+            fail_event, registered_event)
+
+        stop_event.wait()
+        self.assertTrue(stop_event.is_set())
+        self.assertFalse(another_actor.is_alive())
+
     def test_on_stop_is_called_when_actor_is_stopped(self):
         self.assertFalse(self.on_stop_was_called.is_set())
         self.actor_ref.stop()
@@ -124,12 +150,25 @@ class ActorTest(object):
         stop_event.wait()
         self.assertEqual(0, len(ActorRegistry.get_all()))
 
+    def test_actor_can_call_stop_on_self_multiple_times(self):
+        self.actor_ref.send_request_reply({'command': 'stop twice'})
+
 
 class ThreadingActorTest(ActorTest, unittest.TestCase):
     event_class = threading.Event
 
     class AnActor(AnActor, ThreadingActor):
         pass
+
+    class EarlyStoppingActor(EarlyStoppingActor, ThreadingActor):
+        pass
+
+    def test_actor_thread_is_named_as_a_pykka_actor(self):
+        alive_threads = threading.enumerate()
+        alive_thread_names = [t.name for t in alive_threads]
+        named_correctly = [name.startswith('PykkaActorThread')
+            for name in alive_thread_names]
+        self.assert_(any(named_correctly))
 
 
 if sys.version_info < (3,):
@@ -141,4 +180,7 @@ if sys.version_info < (3,):
         event_class = gevent.event.Event
 
         class AnActor(AnActor, GeventActor):
+            pass
+
+        class EarlyStoppingActor(EarlyStoppingActor, GeventActor):
             pass

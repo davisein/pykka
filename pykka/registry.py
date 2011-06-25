@@ -1,6 +1,14 @@
 import logging as _logging
 import threading as _threading
 
+# pylint: disable = W0622
+try:
+    basestring
+except NameError:
+    # Python 3
+    basestring = str
+# pylint: enable = W0622
+
 _logger = _logging.getLogger('pykka')
 
 
@@ -13,6 +21,29 @@ class ActorRegistry(object):
 
     _actor_refs = []
     _actor_refs_lock = _threading.RLock()
+
+    @classmethod
+    def broadcast(cls, message, target_class=None):
+        """
+        Broadcast ``message`` to all actors of the specified ``target_class``.
+
+        If no ``target_class`` is specified, the message is broadcasted to all
+        actors.
+
+        :param message: the message to send
+        :type message: picklable dict
+
+        :param target_class: optional actor class to broadcast the message to
+        :type target_class: class or class name
+        """
+        if isinstance(target_class, basestring):
+            targets = cls.get_by_class_name(target_class)
+        elif target_class is not None:
+            targets = cls.get_by_class(target_class)
+        else:
+            targets = cls.get_all()
+        for ref in targets:
+            ref.send_one_way(message)
 
     @classmethod
     def get_all(cls):
@@ -110,6 +141,13 @@ class ActorRegistry(object):
         :param actor_ref: reference to the actor to unregister
         :type actor_ref: :class:`pykka.actor.ActorRef`
         """
+        removed = False
         with cls._actor_refs_lock:
-            cls._actor_refs.remove(actor_ref)
-        _logger.debug('Unregistered %s', actor_ref)
+            if actor_ref in cls._actor_refs:
+                cls._actor_refs.remove(actor_ref)
+                removed = True
+        if removed:
+            _logger.debug('Unregistered %s', actor_ref)
+        else:
+            _logger.debug('Unregistered %s (not found in registry)',
+                actor_ref)

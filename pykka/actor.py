@@ -160,7 +160,6 @@ class Actor(object):
         :class:`ThreadingActor` expects this method to be named :meth:`run`.
         """
         self.on_start()
-        self._actor_runnable = True
         while self._actor_runnable:
             message = self.actor_inbox.get()
             try:
@@ -323,6 +322,11 @@ class ThreadingActor(Actor, _threading.Thread):
 
     _superclass = _threading.Thread
     _future_class = _ThreadingFuture
+
+    def __new__(cls, *args, **kwargs):
+        obj = Actor.__new__(cls, *args, **kwargs)
+        obj.name = obj.name.replace('Thread', 'PykkaActorThread')
+        return obj
 
     def _new_actor_inbox(self):
         return _queue.Queue()

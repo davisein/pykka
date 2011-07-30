@@ -1,3 +1,4 @@
+import mock
 import sys
 import unittest
 
@@ -42,6 +43,25 @@ class ActorRegistryTest(object):
         ActorRegistry.stop_all(block=True)
         self.assertEquals(0, len(ActorRegistry.get_all()))
 
+    @mock.patch.object(ActorRegistry, 'get_all')
+    def test_stop_all_stops_last_started_actor_first_if_blocking(self,
+            mock_method):
+        stopped_actors = []
+        started_actors = [mock.Mock(name=i) for i in range(3)]
+        started_actors[0].stop.side_effect = lambda *a, **kw: \
+            stopped_actors.append(started_actors[0])
+        started_actors[1].stop.side_effect = lambda *a, **kw: \
+            stopped_actors.append(started_actors[1])
+        started_actors[2].stop.side_effect = lambda *a, **kw: \
+            stopped_actors.append(started_actors[2])
+        ActorRegistry.get_all.return_value = started_actors
+
+        ActorRegistry.stop_all(block=True)
+
+        self.assertEqual(stopped_actors[0], started_actors[2])
+        self.assertEqual(stopped_actors[1], started_actors[1])
+        self.assertEqual(stopped_actors[2], started_actors[0])
+
     def test_actors_may_be_looked_up_by_class(self):
         result = ActorRegistry.get_by_class(self.AnActor)
         for a_actor in self.a_actors:
@@ -75,25 +95,25 @@ class ActorRegistryTest(object):
         ActorRegistry.broadcast({'command': 'foo'})
         for actor_ref in ActorRegistry.get_all():
             received_messages = actor_ref.proxy().received_messages.get()
-            self.assertIn({'command': 'foo'}, received_messages)
+            self.assert_({'command': 'foo'} in received_messages)
 
     def test_broadcast_sends_message_to_all_actors_of_given_class(self):
         ActorRegistry.broadcast({'command': 'foo'}, target_class=self.AnActor)
         for actor_ref in ActorRegistry.get_by_class(self.AnActor):
             received_messages = actor_ref.proxy().received_messages.get()
-            self.assertIn({'command': 'foo'}, received_messages)
+            self.assert_({'command': 'foo'} in received_messages)
         for actor_ref in ActorRegistry.get_by_class(self.BeeActor):
             received_messages = actor_ref.proxy().received_messages.get()
-            self.assertNotIn({'command': 'foo'}, received_messages)
+            self.assert_({'command': 'foo'} not in received_messages)
 
     def test_broadcast_sends_message_to_all_actors_of_given_class_name(self):
         ActorRegistry.broadcast({'command': 'foo'}, target_class='AnActor')
         for actor_ref in ActorRegistry.get_by_class(self.AnActor):
             received_messages = actor_ref.proxy().received_messages.get()
-            self.assertIn({'command': 'foo'}, received_messages)
+            self.assert_({'command': 'foo'} in received_messages)
         for actor_ref in ActorRegistry.get_by_class(self.BeeActor):
             received_messages = actor_ref.proxy().received_messages.get()
-            self.assertNotIn({'command': 'foo'}, received_messages)
+            self.assert_({'command': 'foo'} not in received_messages)
 
 
 class AnActorSuperclass(object):

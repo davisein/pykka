@@ -24,7 +24,8 @@ class Actor(object):
     To create an actor:
 
     1. subclass one of the :class:`Actor` implementations, e.g.
-       :class:`pykka.gevent.GeventActor` or :class:`ThreadingActor`,
+       :class:`GeventActor <pykka.gevent.GeventActor>` or
+       :class:`ThreadingActor`,
     2. implement your methods, including :meth:`__init__`, as usual,
     3. call :meth:`Actor.start` on your actor class, passing the method any
        arguments for your constructor.
@@ -62,7 +63,7 @@ class Actor(object):
     def start(cls, *args, **kwargs):
         """
         Start an actor and register it in the
-        :class:`pykka.registry.ActorRegistry`.
+        :class:`ActorRegistry <pykka.registry.ActorRegistry>`.
 
         Any arguments passed to :meth:`start` will be passed on to the class
         constructor.
@@ -92,11 +93,12 @@ class Actor(object):
 
     #: The actor URN string is a universally unique identifier for the actor.
     #: It may be used for looking up a specific actor using
-    #: :meth:`pykka.registry.ActorRegistry.get_by_urn`.
+    #: :meth:`ActorRegistry.get_by_urn
+    #: <pykka.registry.ActorRegistry.get_by_urn>`.
     actor_urn = None
 
-    #: The actor's inbox. Use :meth:`ActorRef.send_one_way` and friends to put
-    #: messages in the inbox.
+    #: The actor's inbox. Use :meth:`ActorRef.tell`, :meth:`ActorRef.ask`, and
+    #: friends to put messages in the inbox.
     actor_inbox = None
 
     #: The actor's :class:`ActorRef` instance.
@@ -126,7 +128,7 @@ class Actor(object):
         When :meth:`__init__` is called, the internal fields
         :attr:`actor_urn`, :attr:`actor_inbox`, and :attr:`actor_ref` are
         already set, but the actor is not started or registered in
-        :class:`pykka.registry.ActorRegistry`.
+        :class:`ActorRegistry <pykka.registry.ActorRegistry>`.
         """
         pass
     # pylint: enable = W0231
@@ -154,8 +156,8 @@ class Actor(object):
         """
         The actor's main method.
 
-        :class:`pykka.gevent.GeventActor` expects this method to be named
-        :meth:`_run`.
+        :class:`GeventActor <pykka.gevent.GeventActor>` expects this method to
+        be named :meth:`_run`.
 
         :class:`ThreadingActor` expects this method to be named :meth:`run`.
         """
@@ -316,8 +318,9 @@ class ThreadingActor(Actor, _threading.Thread):
     :class:`ThreadingActor` implements :class:`Actor` using regular Python
     threads.
 
-    This implementation is slower than :class:`pykka.gevent.GeventActor`, but
-    can be used in a process with other threads that are not Pykka actors.
+    This implementation is slower than :class:`GeventActor
+    <pykka.gevent.GeventActor>`, but can be used in a process with other
+    threads that are not Pykka actors.
     """
 
     _superclass = _threading.Thread
@@ -341,8 +344,8 @@ class ActorRef(object):
     Reference to a running actor which may safely be passed around.
 
     :class:`ActorRef` instances are returned by :meth:`Actor.start` and the
-    lookup methods in :class:`pykka.registry.ActorRegistry`. You should never
-    need to create :class:`ActorRef` instances yourself.
+    lookup methods in :class:`ActorRegistry <pykka.registry.ActorRegistry>`.
+    You should never need to create :class:`ActorRef` instances yourself.
 
     :param actor: the actor to wrap
     :type actor: :class:`Actor`
@@ -381,7 +384,7 @@ class ActorRef(object):
         """
         return _ActorRegistry.get_by_urn(self.actor_urn) is not None
 
-    def send_one_way(self, message):
+    def tell(self, message):
         """
         Send message to actor without waiting for any response.
 
@@ -398,13 +401,22 @@ class ActorRef(object):
             raise _ActorDeadError('%s not found' % self)
         self.actor_inbox.put(message)
 
-    def send_request_reply(self, message, block=True, timeout=None):
+    def send_one_way(self, message):
+        """
+        Send message to actor without waiting for any response.
+
+        .. deprecated:: 0.14
+           Use :meth:`tell` instead. This will be removed in a future release.
+        """
+        return self.tell(message)
+
+    def ask(self, message, block=True, timeout=None):
         """
         Send message to actor and wait for the reply.
 
         The message must be a picklable dict.
         If ``block`` is :class:`False`, it will immediately return a
-        :class:`pykka.future.Future` instead of blocking.
+        :class:`Future <pykka.future.Future>` instead of blocking.
 
         If ``block`` is :class:`True`, and ``timeout`` is :class:`None`, as
         default, the method will block until it gets a reply, potentially
@@ -427,11 +439,20 @@ class ActorRef(object):
         """
         future = self._future_class()
         message['reply_to'] = future
-        self.send_one_way(message)
+        self.tell(message)
         if block:
             return future.get(timeout=timeout)
         else:
             return future
+
+    def send_request_reply(self, message, block=True, timeout=None):
+        """
+        Send message to actor and wait for the reply.
+
+        .. deprecated:: 0.14
+           Use :meth:`ask` instead. This will be removed in a future release.
+        """
+        return self.ask(message, block, timeout)
 
     def stop(self, block=True, timeout=None):
         """
@@ -440,20 +461,21 @@ class ActorRef(object):
         The actor will finish processing any messages already in its queue
         before stopping. It may not be restarted.
 
-        ``block`` and ``timeout`` works as for :meth:`send_request_reply`.
+        ``block`` and ``timeout`` works as for :meth:`ask`.
 
         :return: :class:`True` if actor is stopped. :class:`False` if actor was
             already dead.
         """
         if self.is_alive():
-            self.send_request_reply({'command': 'pykka_stop'}, block, timeout)
+            self.ask({'command': 'pykka_stop'}, block, timeout)
             return True
         else:
             return False
 
     def proxy(self):
         """
-        Wraps the :class:`ActorRef` in an :class:`pykka.proxy.ActorProxy`.
+        Wraps the :class:`ActorRef` in an :class:`ActorProxy
+        <pykka.proxy.ActorProxy>`.
 
         Using this method like this::
 

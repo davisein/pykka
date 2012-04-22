@@ -1,3 +1,4 @@
+import os
 import sys
 import unittest
 
@@ -34,7 +35,7 @@ class FutureTest(object):
         try:
             self.results[0].set(0)
             self.results[2].set(2)
-            result = get_all(self.results, timeout=0)
+            get_all(self.results, timeout=0)
             self.fail('Should timeout')
         except Timeout:
             pass
@@ -59,7 +60,7 @@ class ThreadingFutureTest(FutureTest, unittest.TestCase):
     future_class = ThreadingFuture
 
 
-if sys.version_info < (3,):
+if sys.version_info < (3,) and 'TRAVIS' not in os.environ:
     from gevent.event import AsyncResult
     from pykka.gevent import GeventFuture
 

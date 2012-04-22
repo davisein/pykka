@@ -1,3 +1,10 @@
+python-pykka (0.14-2) unstable; urgency=low
+
+  * Install docs/changes.rst as changelog.
+  * Build HTML docs and install them instead of the reST files.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Sun, 22 Apr 2012 21:39:44 +0200
+
 python-pykka (0.14-1) unstable; urgency=low
 
   * New upstream release.

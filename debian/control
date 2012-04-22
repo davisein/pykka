@@ -2,7 +2,7 @@ Source: python-pykka
 Section: python
 Priority: optional
 Maintainer: Stein Magnus Jodal <stein.magnus@jodal.no>
-Build-Depends: debhelper (>= 7.0.50~), python (>= 2.6.6-3~)
+Build-Depends: debhelper (>= 7.0.50~), python (>= 2.6.6-3~), python-sphinx (>= 1.0)
 Standards-Version: 3.9.3
 Homepage: http://jodal.github.com/pykka/
 Vcs-Git: git://github.com/mopidy/pykka-deb.git

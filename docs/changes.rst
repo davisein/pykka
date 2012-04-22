@@ -3,6 +3,29 @@ Changes
 =======
 
 
+v0.14 (2012-04-22)
+==================
+
+- Add :attr:`pykka.__version__` to conform with :pep:`396`. This deprecates
+  :attr:`pykka.VERSION` and :meth:`pykka.get_version`.
+
+- Add :meth:`ActorRef.tell() <pykka.actor.ActorRef.tell>` method in favor of now
+  deprecated :meth:`ActorRef.send_one_way() <pykka.actor.ActorRef.send_one_way>`.
+
+- Add :meth:`ActorRef.ask() <pykka.actor.ActorRef.ask>` method in favor of now
+  deprecated :meth:`ActorRef.send_request_reply()
+  <pykka.actor.ActorRef.send_request_reply>`.
+
+- :class:`ThreadingFuture.set() <pykka.future.ThreadingFuture>` no longer makes
+  a copy of the object set on the future. The setter is urged to either only
+  pass immutable objects through futures or copy the object himself before
+  setting it on the future. This is a less safe default, but it removes
+  unecessary overhead in speed and memory usage for users of immutable data
+  structures. For example, the `Mopidy <http://www.mopidy.com>`_ test suite of
+  about 1000 tests, many which are using Pykka, is still passing after this
+  change, but the test suite runs approximately 20% faster.
+
+
 v0.13 (2011-09-24)
 ==================
 

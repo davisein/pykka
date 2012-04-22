@@ -2,11 +2,13 @@ Source: python-pykka
 Section: python
 Priority: optional
 Maintainer: Stein Magnus Jodal <stein.magnus@jodal.no>
-Build-Depends: debhelper (>= 7.0.50~), python-support
-Standards-Version: 3.9.1
+Build-Depends: debhelper (>= 7.0.50~), python (>= 2.6.6-3~)
+Standards-Version: 3.9.3
 Homepage: http://jodal.github.com/pykka/
 Vcs-Git: git://github.com/mopidy/pykka-deb.git
 Vcs-Browser: http://github.com/mopidy/pykka-deb
+X-Python-Version: >= 2.6
+X-Python3-Version: >= 3.0
 
 Package: python-pykka
 Architecture: all

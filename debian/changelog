@@ -1,3 +1,13 @@
+python-pykka (0.14-1) unstable; urgency=low
+
+  * New upstream release.
+  * Update copyright year ranges to include 2012.
+  * Convert to DEP5 formatted debian/copyright.
+  * Bump Standards-Version to 3.9.3.
+  * Convert from deprecated python-support to dh_python2.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Sun, 22 Apr 2012 21:18:06 +0200
+
 python-pykka (0.13.0-1) unstable; urgency=low
 
   * New upstream release.

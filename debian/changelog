@@ -1,3 +1,9 @@
+python-pykka (0.14-2oneiric1) oneiric; urgency=low
+
+  * Rebuild for oneiric, to get Python 2.6 support.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Tue, 08 May 2012 00:00:37 +0200
+
 python-pykka (0.14-2) unstable; urgency=low
 
   * Install docs/changes.rst as changelog.

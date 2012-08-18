@@ -1,3 +1,11 @@
+python-pykka (0.15-2) unstable; urgency=low
+
+  * Split out docs to its own package, python-pykka-doc.
+  * Don't bundle jQuery and Underscore.js.
+  * Register docs with doc-base.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Sun, 19 Aug 2012 00:58:51 +0200
+
 python-pykka (0.15-1) unstable; urgency=low
 
   * New upstream release.

@@ -1,0 +1,5 @@
+usr/share/doc/python-pykka-doc/html usr/share/doc/python-pykka/html
+usr/share/doc/python-pykka-doc/rst usr/share/doc/python-pykka/rst
+usr/share/doc/python-pykka-doc/html/_sources usr/share/doc/python-pykka-doc/rst
+usr/share/javascript/jquery/jquery.min.js usr/share/doc/python-pykka-doc/html/_static/jquery.js
+usr/share/javascript/underscore/underscore.min.js usr/share/doc/python-pykka-doc/html/_static/underscore.js

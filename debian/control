@@ -2,7 +2,10 @@ Source: python-pykka
 Section: python
 Priority: optional
 Maintainer: Stein Magnus Jodal <stein.magnus@jodal.no>
-Build-Depends: debhelper (>= 7.0.50~), python (>= 2.6.6-3~), python-sphinx (>= 1.0)
+Build-Depends:
+    debhelper (>= 7.0.50~),
+    python (>= 2.6.6-3~),
+    python-sphinx (>= 1.0)
 Standards-Version: 3.9.3
 Homepage: http://jodal.github.com/pykka/
 Vcs-Git: git://github.com/mopidy/pykka-deb.git
@@ -12,8 +15,13 @@ X-Python3-Version: >= 3.0
 
 Package: python-pykka
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}
-Suggests: python-gevent
+Depends:
+    ${python:Depends},
+    ${misc:Depends},
+    ${shlibs:Depends}
+Suggests:
+    python-pykka-doc,
+    python-gevent
 Description: Actor model library for Python
  The goal of Pykka is to provide easy to use concurrency abstractions for
  Python by using the actor model.
@@ -28,3 +36,18 @@ Description: Actor model library for Python
  networking library that uses greenlet to provide a high-level synchronous API
  on top of libevent event loop. It is generally faster, but doesn't like
  playing with other threads.
+
+Package: python-pykka-doc
+Section: doc
+Architecture: all
+Depends:
+    ${misc:Depends},
+    libjs-jquery,
+    libjs-underscore
+Recommends: python-pykka
+Replaces: python-pykka (<< 0.15-2)
+Description: Actor model library for Python - documentation
+ The goal of Pykka is to provide easy to use concurrency abstractions for
+ Python by using the actor model.
+ .
+ This package contains documentation for Pykka.

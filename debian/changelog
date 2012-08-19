@@ -1,3 +1,9 @@
+python-pykka (0.15-3) unstable; urgency=low
+
+  * Revert to python-support to make package work on Debian Squeeze.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Sun, 19 Aug 2012 10:09:20 +0200
+
 python-pykka (0.15-2) unstable; urgency=low
 
   * Split out docs to its own package, python-pykka-doc.

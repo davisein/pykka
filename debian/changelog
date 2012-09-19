@@ -1,3 +1,9 @@
+python-pykka (0.16-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Wed, 19 Sep 2012 02:44:22 +0200
+
 python-pykka (0.15-3) unstable; urgency=low
 
   * Revert to python-support to make package work on Debian Squeeze.

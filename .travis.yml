@@ -1,8 +1,13 @@
 language: python
+
 python:
   - 2.6
   - 2.7
   - 3.2
-#  - pypy  # PyPy builds seem broken on Travis CI
-install: pip install -r requirements-dev.txt --use-mirrors
+  - pypy
+
+install:
+  # Install gevent 1.0 on Python 2.6, 2.7, but not 3.2 and PyPy
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.6" || "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then sudo apt-get install libev-dev; pip install --use-mirrors -r requirements-gevent.txt; fi
+
 script: nosetests -v tests/

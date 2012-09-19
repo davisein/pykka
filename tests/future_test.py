@@ -1,10 +1,16 @@
-import os
 import sys
 import traceback
 import unittest
 
 from pykka import Timeout
 from pykka.future import Future, ThreadingFuture, get_all
+
+try:
+    from gevent.event import AsyncResult
+    from pykka.gevent import GeventFuture
+    HAS_GEVENT = True
+except ImportError:
+    HAS_GEVENT = False
 
 
 class FutureBaseTest(unittest.TestCase):
@@ -57,11 +63,17 @@ class FutureTest(object):
         self.assertEqual(outer_future.get().get(), 'foo')
 
     def test_get_raises_exception_with_full_traceback(self):
+        exc_class_get = None
+        exc_class_set = None
+        exc_instance_get = None
+        exc_instance_set = None
+        exc_traceback_get = None
+        exc_traceback_set = None
         future = self.future_class()
 
         try:
             raise NameError('foo')
-        except NameError as error:
+        except NameError:
             exc_class_set, exc_instance_set, exc_traceback_set = sys.exc_info()
             future.set_exception()
 
@@ -91,10 +103,7 @@ class ThreadingFutureTest(FutureTest, unittest.TestCase):
     future_class = ThreadingFuture
 
 
-if sys.version_info < (3,) and 'TRAVIS' not in os.environ:
-    from gevent.event import AsyncResult
-    from pykka.gevent import GeventFuture
-
+if HAS_GEVENT:
     class GeventFutureTest(FutureTest, unittest.TestCase):
         future_class = GeventFuture
 

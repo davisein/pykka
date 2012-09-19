@@ -1,4 +1,3 @@
-import collections as _collections
 import logging as _logging
 import sys as _sys
 import threading as _threading
@@ -146,6 +145,12 @@ class Actor(object):
         The actor will finish processing any messages already in its queue
         before stopping. It may not be restarted.
         """
+        self.actor_ref.tell({'command': 'pykka_stop'})
+
+    def _stop(self):
+        """
+        Stops the actor immediately without processing the rest of the inbox.
+        """
         _ActorRegistry.unregister(self.actor_ref)
         self._actor_runnable = False
         _logger.debug('Stopped %s', self)
@@ -168,18 +173,18 @@ class Actor(object):
                 response = self._handle_receive(message)
                 if 'reply_to' in message:
                     message['reply_to'].set(response)
-            except Exception as exception:
+            except Exception:
                 if 'reply_to' in message:
                     _logger.debug('Exception returned from %s to caller:' %
                         self, exc_info=_sys.exc_info())
                     message['reply_to'].set_exception()
                 else:
                     self._handle_failure(*_sys.exc_info())
-            except BaseException as exception:
+            except BaseException:
                 exception_value = _sys.exc_info()[1]
                 _logger.debug('%s in %s. Stopping all actors.' %
                     (repr(exception_value), self))
-                self.stop()
+                self._stop()
                 _ActorRegistry.stop_all()
     # pylint: enable = W0703
 
@@ -230,10 +235,8 @@ class Actor(object):
 
     def _handle_receive(self, message):
         """Handles messages sent to the actor."""
-        if message.get('command') == 'pykka_get_attributes':
-            return self._get_attributes()
         if message.get('command') == 'pykka_stop':
-            return self.stop()
+            return self._stop()
         if message.get('command') == 'pykka_call':
             callee = self._get_attribute_from_path(message['attr_path'])
             return callee(*message['args'], **message['kwargs'])
@@ -261,30 +264,6 @@ class Actor(object):
         """
         _logger.warning('Unexpected message received by %s: %s', self, message)
 
-    def _is_exposable_attribute(self, attr_name):
-        """
-        Returns true for any attribute name that may be exposed through
-        :class:`ActorProxy`.
-        """
-        return not attr_name.startswith('_')
-
-    def _is_callable_attribute(self, attr):
-        """Returns true for any attribute that is callable."""
-        # isinstance(attr, collections.Callable), as recommended by 2to3, does
-        # not work on CPython 2.6.4 if the attribute is an Queue.Queue, but
-        # works on 2.6.6.
-        if _sys.version_info < (3,):
-            return callable(attr)
-        else:
-            return isinstance(attr, _collections.Callable)
-
-    def _is_traversable_attribute(self, attr):
-        """
-        Returns true for any attribute that may be traversed from another
-        actor through :class:`ActorProxy`.
-        """
-        return hasattr(attr, 'pykka_traversable')
-
     def _get_attribute_from_path(self, attr_path):
         """
         Traverses the path and returns the attribute at the end of the path.
@@ -293,23 +272,6 @@ class Actor(object):
         for attr_name in attr_path:
             attr = getattr(attr, attr_name)
         return attr
-
-    def _get_attributes(self):
-        """Gathers attribute information needed by :class:`ActorProxy`."""
-        result = {}
-        attr_paths_to_visit = [[attr_name] for attr_name in dir(self)]
-        while attr_paths_to_visit:
-            attr_path = attr_paths_to_visit.pop(0)
-            if self._is_exposable_attribute(attr_path[-1]):
-                attr = self._get_attribute_from_path(attr_path)
-                result[tuple(attr_path)] = {
-                    'callable': self._is_callable_attribute(attr),
-                    'traversable': self._is_traversable_attribute(attr),
-                }
-                if self._is_traversable_attribute(attr):
-                    for attr_name in dir(attr):
-                        attr_paths_to_visit.append(attr_path + [attr_name])
-        return result
 
 
 # pylint: disable = R0901
@@ -355,6 +317,7 @@ class ActorRef(object):
     actor_urn = None
 
     def __init__(self, actor):
+        self._actor = actor
         self.actor_urn = actor.actor_urn
         self.actor_class = actor.__class__
         self.actor_inbox = actor.actor_inbox

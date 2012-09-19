@@ -3,6 +3,26 @@ Changes
 =======
 
 
+v0.16 (2012-09-19)
+==================
+
+- Let actors access themselves through a proxy. See the :class:`ActorProxy
+  <pykka.proxy.ActorProxy>` documentation for use cases and usage examples.
+  (Fixes: :issue:`9`)
+
+- Give proxies direct access to the actor instances for inspecting available
+  attributes. This access is only used for reading, and works since both
+  threading and gevent based actors share memory with other actors. This
+  reduces the creation cost for proxies, which is mostly visible in test suites
+  that are starting and stopping lots of actors. For the Mopidy test suite the
+  run time was reduced by about 33%. This change also makes self-proxying
+  possible.
+
+- Fix bug where :meth:`Actor.stop() <pykka.actor.Actor.stop>` called by an
+  actor on itself did not process the remaining messages in the inbox before
+  the actor stopped. The behavior now matches the documentation.
+
+
 v0.15 (2012-08-11)
 ==================
 

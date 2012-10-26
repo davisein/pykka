@@ -1,25 +1,28 @@
 #! /usr/bin/env python
 
-from pykka.actor import ThreadingActor
-from pykka.registry import ActorRegistry
+import pykka
 
-class Adder(ThreadingActor):
+
+class Adder(pykka.ThreadingActor):
     def add_one(self, i):
-        print '%s is increasing %d' % (self, i)
+        print('{} is increasing {}'.format(self, i))
         return i + 1
 
-class Bookkeeper(ThreadingActor):
+
+class Bookkeeper(pykka.ThreadingActor):
     def __init__(self, adder):
+        super(Bookkeeper, self).__init__()
         self.adder = adder
 
     def count_to(self, target):
         i = 0
         while i < target:
             i = self.adder.add_one(i).get()
-            print '%s got %d back' % (self, i)
+            print('{} got {} back'.format(self, i))
+
 
 if __name__ == '__main__':
     adder = Adder.start().proxy()
     bookkeeper = Bookkeeper.start(adder).proxy()
     bookkeeper.count_to(10).get()
-    ActorRegistry.stop_all()
+    pykka.ActorRegistry.stop_all()

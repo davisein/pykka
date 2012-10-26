@@ -1,9 +1,11 @@
 #! /usr/bin/env python
 
-from pykka.actor import ThreadingActor
+import pykka
 
-class PlainActor(ThreadingActor):
+
+class PlainActor(pykka.ThreadingActor):
     def __init__(self):
+        super(PlainActor, self).__init__()
         self.stored_messages = []
 
     def on_receive(self, message):
@@ -12,9 +14,10 @@ class PlainActor(ThreadingActor):
         else:
             self.stored_messages.append(message)
 
+
 if __name__ == '__main__':
     actor = PlainActor.start()
     actor.tell({'no': 'Norway', 'se': 'Sweden'})
     actor.tell({'a': 3, 'b': 4, 'c': 5})
-    print actor.ask({'command': 'get_messages'})
+    print(actor.ask({'command': 'get_messages'}))
     actor.stop()

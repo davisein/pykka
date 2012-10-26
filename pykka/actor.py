@@ -8,9 +8,11 @@ try:
     import Queue as _queue
 except ImportError:
     # Python 3.x
-    import queue as _queue  # pylint: disable = F0401
+    # pylint: disable = F0401
+    import queue as _queue  # noqa
+    # pylint: enable = F0401
 
-from pykka import ActorDeadError as _ActorDeadError
+from pykka.exceptions import ActorDeadError as _ActorDeadError
 from pykka.future import ThreadingFuture as _ThreadingFuture
 from pykka.proxy import ActorProxy as _ActorProxy
 from pykka.registry import ActorRegistry as _ActorRegistry
@@ -33,10 +35,11 @@ class Actor(object):
 
     For example::
 
-        from pykka.actor import ThreadingActor
+        import pykka
 
-        class MyActor(ThreadingActor):
+        class MyActor(pykka.ThreadingActor):
             def __init__(self, my_arg=None):
+                super(MyActor, self).__init__()
                 ... # My optional init code with access to start() arguments
 
             def on_start(self):
@@ -62,38 +65,62 @@ class Actor(object):
     def start(cls, *args, **kwargs):
         """
         Start an actor and register it in the
-        :class:`ActorRegistry <pykka.registry.ActorRegistry>`.
+        :class:`ActorRegistry <pykka.ActorRegistry>`.
 
         Any arguments passed to :meth:`start` will be passed on to the class
         constructor.
 
-        Returns a :class:`ActorRef` which can be used to access the actor in a
-        safe manner.
-
         Behind the scenes, the following is happening when you call
-        :meth:`start`::
+        :meth:`start`:
 
-            Actor.start()
-                Actor.__new__()
-                    superclass.__new__()
-                    superclass.__init__()
-                    URN assignment
-                    Inbox creation
-                    ActorRef creation
-                Actor.__init__()        # Your code can run here
-                ActorRegistry.register()
-                superclass.start()
+        1. The actor is created:
+
+           1. :attr:`actor_urn` is initialized with the assigned URN.
+
+           2. :attr:`actor_inbox` is initialized with a new actor inbox.
+
+           3. :attr:`actor_ref` is initialized with a :class:`pykka.ActorRef`
+              object for safely communicating with the actor.
+
+           4. At this point, your :meth:`__init__()` code can run.
+
+        2. The actor is registered in :class:`pykka.ActorRegistry`.
+
+        3. The actor receive loop is started by the actor's associated
+           thread/greenlet.
+
+        :returns: a :class:`ActorRef` which can be used to access the actor in
+            a safe manner
         """
         obj = cls(*args, **kwargs)
+        assert obj.actor_ref is not None, (
+            'Actor.__init__() have not been called. '
+            'Did you forget to call super() in your override?')
         _ActorRegistry.register(obj.actor_ref)
-        cls._superclass.start(obj)
+        # pylint: disable = W0212
+        obj._start_actor_loop()
+        # pylint: enable = W0212
         _logger.debug('Started %s', obj)
         return obj.actor_ref
+
+    @staticmethod
+    def _create_actor_inbox():
+        """Internal method for implementors of new actor types."""
+        raise NotImplementedError('Use a subclass of Actor')
+
+    @staticmethod
+    def _create_future():
+        """Internal method for implementors of new actor types."""
+        raise NotImplementedError('Use a subclass of Actor')
+
+    def _start_actor_loop(self):
+        """Internal method for implementors of new actor types."""
+        raise NotImplementedError('Use a subclass of Actor')
 
     #: The actor URN string is a universally unique identifier for the actor.
     #: It may be used for looking up a specific actor using
     #: :meth:`ActorRegistry.get_by_urn
-    #: <pykka.registry.ActorRegistry.get_by_urn>`.
+    #: <pykka.ActorRegistry.get_by_urn>`.
     actor_urn = None
 
     #: The actor's inbox. Use :meth:`ActorRef.tell`, :meth:`ActorRef.ask`, and
@@ -107,30 +134,28 @@ class Actor(object):
     #: :meth:`stop` to change it.
     _actor_runnable = True
 
-    def __new__(cls, *args, **kwargs):
-        obj = cls._superclass.__new__(cls)
-        cls._superclass.__init__(obj)
-        obj.actor_urn = _uuid.uuid4().urn
-        # pylint: disable = W0212
-        obj.actor_inbox = obj._new_actor_inbox()
-        # pylint: enable = W0212
-        obj.actor_ref = ActorRef(obj)
-        return obj
-
-    # pylint: disable = W0231
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """
-        Your are free to override :meth:`__init__` and do any setup you need to
-        do. You should not call ``super(YourClass, self).__init__(...)``, as
-        that has already been done when your constructor is called.
+        Your are free to override :meth:`__init__`, but you must call your
+        superclass' :meth:`__init__` to ensure that fields :attr:`actor_urn`,
+        :attr:`actor_inbox`, and :attr:`actor_ref` are initialized.
 
-        When :meth:`__init__` is called, the internal fields
-        :attr:`actor_urn`, :attr:`actor_inbox`, and :attr:`actor_ref` are
-        already set, but the actor is not started or registered in
-        :class:`ActorRegistry <pykka.registry.ActorRegistry>`.
+        You can use :func:`super`::
+
+            super(MyActor, self).__init__()
+
+        Or call you superclass directly::
+
+            pykka.ThreadingActor.__init__()
+            # or
+            pykka.gevent.GeventActor.__init__()
+
+        :meth:`__init__` is called before the actor is started and registered
+        in :class:`ActorRegistry <pykka.ActorRegistry>`.
         """
-        pass
-    # pylint: enable = W0231
+        self.actor_urn = _uuid.uuid4().urn
+        self.actor_inbox = self._create_actor_inbox()
+        self.actor_ref = ActorRef(self)
 
     def __str__(self):
         return '%(class)s (%(urn)s)' % {
@@ -156,15 +181,11 @@ class Actor(object):
         _logger.debug('Stopped %s', self)
         self.on_stop()
 
-    # pylint: disable = W0703
-    def _run(self):
+    def _actor_loop(self):
         """
-        The actor's main method.
+        The actor's event loop.
 
-        :class:`GeventActor <pykka.gevent.GeventActor>` expects this method to
-        be named :meth:`_run`.
-
-        :class:`ThreadingActor` expects this method to be named :meth:`run`.
+        This is the method that will be executed by the thread or greenlet.
         """
         self.on_start()
         while self._actor_runnable:
@@ -175,18 +196,19 @@ class Actor(object):
                     message['reply_to'].set(response)
             except Exception:
                 if 'reply_to' in message:
-                    _logger.debug('Exception returned from %s to caller:' %
-                        self, exc_info=_sys.exc_info())
+                    _logger.debug(
+                        'Exception returned from %s to caller:' % self,
+                        exc_info=_sys.exc_info())
                     message['reply_to'].set_exception()
                 else:
                     self._handle_failure(*_sys.exc_info())
             except BaseException:
                 exception_value = _sys.exc_info()[1]
-                _logger.debug('%s in %s. Stopping all actors.' %
+                _logger.debug(
+                    '%s in %s. Stopping all actors.' %
                     (repr(exception_value), self))
                 self._stop()
                 _ActorRegistry.stop_all()
-    # pylint: enable = W0703
 
     def on_start(self):
         """
@@ -214,7 +236,8 @@ class Actor(object):
 
     def _handle_failure(self, exception_type, exception_value, traceback):
         """Logs unexpected failures, unregisters and stops the actor."""
-        _logger.error('Unhandled exception in %s:' % self,
+        _logger.error(
+            'Unhandled exception in %s:' % self,
             exc_info=(exception_type, exception_value, traceback))
         _ActorRegistry.unregister(self.actor_ref)
         self._actor_runnable = False
@@ -274,8 +297,7 @@ class Actor(object):
         return attr
 
 
-# pylint: disable = R0901
-class ThreadingActor(Actor, _threading.Thread):
+class ThreadingActor(Actor):
     """
     :class:`ThreadingActor` implements :class:`Actor` using regular Python
     threads.
@@ -285,20 +307,18 @@ class ThreadingActor(Actor, _threading.Thread):
     threads that are not Pykka actors.
     """
 
-    _superclass = _threading.Thread
-    _future_class = _ThreadingFuture
-
-    def __new__(cls, *args, **kwargs):
-        obj = Actor.__new__(cls, *args, **kwargs)
-        obj.name = obj.name.replace('Thread', 'PykkaActorThread')
-        return obj
-
-    def _new_actor_inbox(self):
+    @staticmethod
+    def _create_actor_inbox():
         return _queue.Queue()
 
-    def run(self):
-        return Actor._run(self)
-# pylint: enable = R0901
+    @staticmethod
+    def _create_future():
+        return _ThreadingFuture()
+
+    def _start_actor_loop(self):
+        thread = _threading.Thread(target=self._actor_loop)
+        thread.name = thread.name.replace('Thread', 'PykkaActorThread')
+        thread.start()
 
 
 class ActorRef(object):
@@ -306,24 +326,27 @@ class ActorRef(object):
     Reference to a running actor which may safely be passed around.
 
     :class:`ActorRef` instances are returned by :meth:`Actor.start` and the
-    lookup methods in :class:`ActorRegistry <pykka.registry.ActorRegistry>`.
-    You should never need to create :class:`ActorRef` instances yourself.
+    lookup methods in :class:`ActorRegistry <pykka.ActorRegistry>`. You should
+    never need to create :class:`ActorRef` instances yourself.
 
     :param actor: the actor to wrap
     :type actor: :class:`Actor`
     """
 
-    #: See :attr:`Actor.actor_urn`
+    #: The class of the referenced actor.
+    actor_class = None
+
+    #: See :attr:`Actor.actor_urn`.
     actor_urn = None
+
+    #: See :attr:`Actor.actor_inbox`.
+    actor_inbox = None
 
     def __init__(self, actor):
         self._actor = actor
-        self.actor_urn = actor.actor_urn
         self.actor_class = actor.__class__
+        self.actor_urn = actor.actor_urn
         self.actor_inbox = actor.actor_inbox
-        # pylint: disable = W0212
-        self._future_class = actor._future_class
-        # pylint: enable = W0212
 
     def __repr__(self):
         return '<ActorRef for %s>' % str(self)
@@ -364,22 +387,13 @@ class ActorRef(object):
             raise _ActorDeadError('%s not found' % self)
         self.actor_inbox.put(message)
 
-    def send_one_way(self, message):
-        """
-        Send message to actor without waiting for any response.
-
-        .. deprecated:: 0.14
-           Use :meth:`tell` instead. This will be removed in a future release.
-        """
-        return self.tell(message)
-
     def ask(self, message, block=True, timeout=None):
         """
         Send message to actor and wait for the reply.
 
         The message must be a picklable dict.
         If ``block`` is :class:`False`, it will immediately return a
-        :class:`Future <pykka.future.Future>` instead of blocking.
+        :class:`Future <pykka.Future>` instead of blocking.
 
         If ``block`` is :class:`True`, and ``timeout`` is :class:`None`, as
         default, the method will block until it gets a reply, potentially
@@ -398,24 +412,17 @@ class ActorRef(object):
 
         :raise: :exc:`pykka.Timeout` if timeout is reached
         :raise: :exc:`pykka.ActorDeadError` if actor is not available
-        :return: :class:`pykka.future.Future` or response
+        :return: :class:`pykka.Future` or response
         """
-        future = self._future_class()
+        # pylint: disable = W0212
+        future = self.actor_class._create_future()
+        # pylint: enable = W0212
         message['reply_to'] = future
         self.tell(message)
         if block:
             return future.get(timeout=timeout)
         else:
             return future
-
-    def send_request_reply(self, message, block=True, timeout=None):
-        """
-        Send message to actor and wait for the reply.
-
-        .. deprecated:: 0.14
-           Use :meth:`ask` instead. This will be removed in a future release.
-        """
-        return self.ask(message, block, timeout)
 
     def stop(self, block=True, timeout=None):
         """
@@ -438,7 +445,7 @@ class ActorRef(object):
     def proxy(self):
         """
         Wraps the :class:`ActorRef` in an :class:`ActorProxy
-        <pykka.proxy.ActorProxy>`.
+        <pykka.ActorProxy>`.
 
         Using this method like this::
 
@@ -449,6 +456,6 @@ class ActorRef(object):
             proxy = ActorProxy(AnActor.start())
 
         :raise: :exc:`pykka.ActorDeadError` if actor is not available
-        :return: :class:`pykka.proxy.ActorProxy`
+        :return: :class:`pykka.ActorProxy`
         """
         return _ActorProxy(self)

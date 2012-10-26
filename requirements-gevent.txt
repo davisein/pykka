@@ -1,2 +1,0 @@
-cython
-https://github.com/SiteSupport/gevent/tarball/1.0b4

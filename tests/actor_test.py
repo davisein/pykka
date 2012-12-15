@@ -220,7 +220,6 @@ class ThreadingActorTest(ActorTest, unittest.TestCase):
         pass
 
     class SuperInitActor(ThreadingActor):
-<<<<<<< HEAD
         pass
 
     def test_actor_thread_is_named_after_pykka_actor_class(self):
@@ -228,17 +227,6 @@ class ThreadingActorTest(ActorTest, unittest.TestCase):
         alive_thread_names = [t.name for t in alive_threads]
         named_correctly = [
             name.startswith(AnActor.__name__) for name in alive_thread_names]
-=======
-        def __init__(self, *args, **kwargs):
-            super(ThreadingActorTest.SuperInitActor, self).__init__(
-                *args, **kwargs)
-
-    def test_actor_thread_is_named_as_a_pykka_actor(self):
-        alive_threads = threading.enumerate()
-        alive_thread_names = [t.name for t in alive_threads]
-        named_correctly = [
-            name.startswith('PykkaActorThread') for name in alive_thread_names]
->>>>>>> 9c402b53d9b9b520d05736cc9e9bcfab7ad8d475
         self.assert_(any(named_correctly))
 
 
@@ -253,10 +241,4 @@ if HAS_GEVENT:
             pass
 
         class SuperInitActor(GeventActor):
-<<<<<<< HEAD
             pass
-=======
-            def __init__(self, *args, **kwargs):
-                super(GeventActorTest.SuperInitActor, self).__init__(
-                    *args, **kwargs)
->>>>>>> 9c402b53d9b9b520d05736cc9e9bcfab7ad8d475

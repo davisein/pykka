@@ -317,11 +317,7 @@ class ThreadingActor(Actor):
 
     def _start_actor_loop(self):
         thread = _threading.Thread(target=self._actor_loop)
-<<<<<<< HEAD
         thread.name = thread.name.replace('Thread', self.__class__.__name__)
-=======
-        thread.name = thread.name.replace('Thread', 'PykkaActorThread')
->>>>>>> 9c402b53d9b9b520d05736cc9e9bcfab7ad8d475
         thread.start()
 
 

@@ -1,5 +1,3 @@
-import os
-import sys
 import time
 import unittest
 
@@ -7,9 +5,17 @@ from pykka import ActorDeadError, Timeout
 from pykka.actor import ThreadingActor
 from pykka.future import ThreadingFuture
 
+try:
+    import gevent
+    from pykka.gevent import GeventActor, GeventFuture
+    HAS_GEVENT = True
+except ImportError:
+    HAS_GEVENT = False
+
 
 class AnActor(object):
     def __init__(self, received_message):
+        super(AnActor, self).__init__()
         self.received_message = received_message
 
     def on_receive(self, message):
@@ -67,26 +73,13 @@ class RefTest(object):
 
     def test_tell_delivers_message_to_actors_custom_on_receive(self):
         self.ref.tell({'command': 'a custom message'})
-        self.assertEqual({'command': 'a custom message'},
-            self.received_message.get())
+        self.assertEqual(
+            {'command': 'a custom message'}, self.received_message.get())
 
     def test_tell_fails_if_actor_is_stopped(self):
         self.ref.stop()
         try:
             self.ref.tell({'command': 'a custom message'})
-            self.fail('Should raise ActorDeadError')
-        except ActorDeadError as exception:
-            self.assertEqual('%s not found' % self.ref, str(exception))
-
-    def test_send_one_way_delivers_message_to_actors_custom_on_receive(self):
-        self.ref.send_one_way({'command': 'a custom message'})
-        self.assertEqual({'command': 'a custom message'},
-            self.received_message.get())
-
-    def test_send_one_way_fails_if_actor_is_stopped(self):
-        self.ref.stop()
-        try:
-            self.ref.send_one_way({'command': 'a custom message'})
             self.fail('Should raise ActorDeadError')
         except ActorDeadError as exception:
             self.assertEqual('%s not found' % self.ref, str(exception))
@@ -114,29 +107,6 @@ class RefTest(object):
         except ActorDeadError as exception:
             self.assertEqual('%s not found' % self.ref, str(exception))
 
-    def test_send_request_reply_blocks_until_response_arrives(self):
-        result = self.ref.send_request_reply({'command': 'ping'})
-        self.assertEqual('pong', result)
-
-    def test_send_request_reply_can_timeout_if_blocked_too_long(self):
-        try:
-            self.ref.send_request_reply({'command': 'ping'}, timeout=0)
-            self.fail('Should raise Timeout exception')
-        except Timeout:
-            pass
-
-    def test_send_request_reply_can_return_future_instead_of_blocking(self):
-        future = self.ref.send_request_reply({'command': 'ping'}, block=False)
-        self.assertEqual('pong', future.get())
-
-    def test_send_request_reply_fails_if_actor_is_stopped(self):
-        self.ref.stop()
-        try:
-            self.ref.send_request_reply({'command': 'ping'})
-            self.fail('Should raise ActorDeadError')
-        except ActorDeadError as exception:
-            self.assertEqual('%s not found' % self.ref, str(exception))
-
 
 class ThreadingRefTest(RefTest, unittest.TestCase):
     future_class = ThreadingFuture
@@ -146,10 +116,7 @@ class ThreadingRefTest(RefTest, unittest.TestCase):
             time.sleep(seconds)
 
 
-if sys.version_info < (3,) and 'TRAVIS' not in os.environ:
-    import gevent
-    from pykka.gevent import GeventActor, GeventFuture
-
+if HAS_GEVENT:
     class GeventRefTest(RefTest, unittest.TestCase):
         future_class = GeventFuture
 

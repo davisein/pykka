@@ -1,15 +1,19 @@
-import os
-import sys
 import unittest
 
 from pykka import ActorDeadError
 from pykka.actor import ThreadingActor
 from pykka.proxy import ActorProxy
-from pykka.registry import ActorRegistry
+
+try:
+    from pykka.gevent import GeventActor
+    HAS_GEVENT = True
+except ImportError:
+    HAS_GEVENT = False
 
 
 class SomeObject(object):
-    baz = 'bar.baz'
+    cat = 'bar.cat'
+    pykka_traversable = False
 
 
 class AnActor(object):
@@ -19,7 +23,8 @@ class AnActor(object):
     foo = 'foo'
 
     def __init__(self):
-        self.baz = 'quox'
+        super(AnActor, self).__init__()
+        self.cat = 'quox'
 
     def func(self):
         pass
@@ -30,7 +35,10 @@ class ProxyTest(object):
         self.proxy = ActorProxy(self.AnActor.start())
 
     def tearDown(self):
-        ActorRegistry.stop_all()
+        try:
+            self.proxy.stop()
+        except ActorDeadError:
+            pass
 
     def test_repr_is_wrapped_in_lt_and_gt(self):
         result = repr(self.proxy)
@@ -58,7 +66,7 @@ class ProxyTest(object):
     def test_dir_on_proxy_lists_attributes_of_the_actor(self):
         result = dir(self.proxy)
         self.assert_('foo' in result)
-        self.assert_('baz' in result)
+        self.assert_('cat' in result)
         self.assert_('func' in result)
 
     def test_dir_on_proxy_lists_private_attributes_of_the_proxy(self):
@@ -92,9 +100,7 @@ class ThreadingProxyTest(ProxyTest, unittest.TestCase):
         pass
 
 
-if sys.version_info < (3,) and 'TRAVIS' not in os.environ:
-    from pykka.gevent import GeventActor
-
+if HAS_GEVENT:
     class GeventProxyTest(ProxyTest, unittest.TestCase):
         class AnActor(AnActor, GeventActor):
             pass

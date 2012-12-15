@@ -6,10 +6,12 @@ try:
     PY3 = False
 except ImportError:
     # Python 3.x
-    import queue as _queue  # pylint: disable = F0401
+    # pylint: disable = F0401
+    import queue as _queue  # noqa
+    # pylint: enable = F0401
     PY3 = True
 
-from pykka import Timeout as _Timeout
+from pykka.exceptions import Timeout as _Timeout
 
 
 class Future(object):
@@ -61,7 +63,7 @@ class Future(object):
 
         You can pass an ``exc_info`` three-tuple, as returned by
         :func:`sys.exc_info`. If you don't pass ``exc_info``,
-        ``sys.exc_info()`` will be called and the value returned by it used.
+        :func:`sys.exc_info` will be called and the value returned by it used.
 
         In other words, if you're calling :meth:`set_exception`, without any
         arguments, from an except block, the exception you're currently
@@ -81,13 +83,14 @@ class Future(object):
 class ThreadingFuture(Future):
     """
     :class:`ThreadingFuture` implements :class:`Future` for use with
-    :class:`ThreadingActor <pykka.actor.ThreadingActor>`.
+    :class:`ThreadingActor <pykka.ThreadingActor>`.
 
     The future is implemented using a :class:`Queue.Queue`.
 
-    The future does *not* make a copy of the object which is :meth:`set` on it.
-    It is the setters responsibility to only pass immutable objects or make a
-    copy of the object before setting it on the future.
+    The future does *not* make a copy of the object which is :meth:`set()
+    <pykka.Future.set>` on it. It is the setters responsibility to only pass
+    immutable objects or make a copy of the object before setting it on the
+    future.
 
     .. versionchanged:: 0.14
         Previously, the encapsulated value was a copy made with
@@ -109,7 +112,8 @@ class ThreadingFuture(Future):
                 if PY3:
                     raise exc_info[1].with_traceback(exc_info[2])
                 else:
-                    exec('raise exc_info[0], exc_info[1], exc_info[2]')
+                    exec(  # pylint: disable = W0122
+                        'raise exc_info[0], exc_info[1], exc_info[2]')
             else:
                 return self._data['value']
         except _queue.Empty:
@@ -132,7 +136,7 @@ def get_all(futures, timeout=None):
     ``timeout`` seconds, and then raise :exc:`pykka.Timeout`.
 
     :param futures: futures for the results to collect
-    :type futures: list of `pykka.future.Future`
+    :type futures: list of :class:`pykka.Future`
 
     :param timeout: seconds to wait before timeout
     :type timeout: float or :class:`None`

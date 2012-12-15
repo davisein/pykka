@@ -1,4 +1,20 @@
+<<<<<<< HEAD
 pykka (1.0.1-1) unstable; urgency=low
+=======
+python-pykka (1.0.0-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Fri, 26 Oct 2012 22:11:42 +0200
+
+python-pykka (0.16-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Stein Magnus Jodal <stein.magnus@jodal.no>  Wed, 19 Sep 2012 02:44:22 +0200
+
+python-pykka (0.15-3) unstable; urgency=low
+>>>>>>> 9c402b53d9b9b520d05736cc9e9bcfab7ad8d475
 
   * source package automatically created by stdeb 0.6.0+git
 
